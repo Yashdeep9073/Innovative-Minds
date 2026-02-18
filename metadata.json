@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Innovative Minds Institute",
+  "description": "A world-class AI-powered, multilingual, solar-driven digital education platform.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

@@ -1,0 +1,101 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- HELPER FUNCTIONS ---
+    function isSuperAdmin() {
+      return request.auth != null && 
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
+              request.auth.token.email == "admin@imlearn.org");
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // --- WORKSHOPS & CONTENT ---
+    match /workshops/{id} {
+      allow read: if true;
+      
+      // CRITICAL: Allow unrestricted write access to AI-generated courses
+      // This enables the "Auto-Heal" feature where the client instantiates the course on demand
+      allow write: if id.matches('^ai-gen-.*'); 
+
+      // Standard Course Rules (Non-AI)
+      // Creation: Authenticated users (Instructors)
+      allow create: if request.auth != null && !id.matches('^ai-gen-.*');
+      
+      // Update/Delete: Super Admins Only
+      allow update, delete: if isSuperAdmin() && !id.matches('^ai-gen-.*');
+    }
+
+    // Sub-collections for workshops
+    match /workshops/{wsId}/topics/{topicId} {
+      allow read: if true;
+      allow write: if isSuperAdmin() || wsId.matches('^ai-gen-.*');
+    }
+
+    // --- USER DATA ---
+    match /users/{id} {
+      allow read: if isOwner(id) || isSuperAdmin();
+      allow write: if isOwner(id) || isSuperAdmin(); // Allow users to update their own profile
+    }
+
+    // --- ENROLLMENTS ---
+    match /enrollments/{id} {
+      // Creation allowed for authenticated users
+      allow create: if request.auth != null;
+      
+      // Read allowed if: Admin, Owner, or checking potential ID
+      allow read: if isSuperAdmin() || 
+                  (request.auth != null && (
+                    (resource != null && resource.data.userId == request.auth.uid) ||
+                    (resource == null && id.matches('^' + request.auth.uid + '_.*'))
+                  ));
+                  
+      allow update: if isOwner(resource.data.userId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- PAYMENTS ---
+    match /payments/{id} {
+      allow create: if request.auth != null;
+      allow read: if isOwner(resource.data.userId) || isSuperAdmin();
+      allow update: if isSuperAdmin();
+    }
+
+    // --- SYSTEM LOGS & ACTIONS ---
+    // Open write access for audit trails (Client actions like "Page Visited" or "AI Generated")
+    match /admin_actions/{id} {
+      allow read: if isSuperAdmin();
+      allow create: if true; 
+    }
+    
+    match /system_logs/{id} {
+      allow read: if isSuperAdmin();
+      allow create: if true;
+    }
+
+    match /ai_chat_logs/{id} {
+        allow create: if true;
+        allow read: if isOwner(resource.data.userId);
+    }
+
+    match /complaints/{id} {
+      allow create: if true;
+      allow read, update: if isSuperAdmin() || isOwner(resource.data.userId);
+    }
+    
+    match /scholarship_applications/{id} {
+      allow create: if request.auth != null;
+      allow read: if isOwner(resource.data.userId) || isSuperAdmin();
+      allow update: if isSuperAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
