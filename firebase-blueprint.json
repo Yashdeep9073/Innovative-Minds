@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "UnifiedCourse": {
+      "title": "Unified Course",
+      "description": "A unified structure for all academic offerings (Workshops, Certificates, Diplomas, Degrees, Masters).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "level": { "type": "string", "enum": ["Workshop", "Certificate", "Diploma", "Degree", "Masters"] },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published", "archived", "pending_review"] },
+        "visible": { "type": "boolean" }
+      },
+      "required": ["id", "title", "level", "status"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User profile data including roles and permissions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["guest", "student", "admin", "university", "partner", "government"] }
+      },
+      "required": ["id", "name", "role"]
+    }
+  },
+  "firestore": {
+    "/workshops": {
+      "schema": "UnifiedCourse",
+      "description": "Legacy collection for workshops, now part of the unified catalog."
+    },
+    "/programs": {
+      "schema": "UnifiedCourse",
+      "description": "Collection for academic programs (Certificates, Diplomas, Degrees, Masters)."
+    },
+    "/users": {
+      "schema": "User",
+      "description": "User profiles."
+    }
+  }
+}

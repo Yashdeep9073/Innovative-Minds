@@ -1,0 +1,32 @@
+{
+  "name": "I.M Institute",
+  "short_name": "I.M Institute",
+  "description": "Innovative Minds Institute - Future of Education. AI-driven, solar-powered, and accessible digital learning.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#D62828",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "orientation": "portrait",
+  "scope": "/",
+  "categories": ["education", "learning"]
+}

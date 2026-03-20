@@ -1,0 +1,202 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- HELPER FUNCTIONS ---
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          ("email" in request.auth.token && request.auth.token.email == "admin@imlearn.org") ||
+          ("email" in request.auth.token && request.auth.token.email == "maorderzambia@gmail.com") ||
+          ("email" in request.auth.token && request.auth.token.email == "admin@iminstitute.online") ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+        );
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() &&
+        (
+          ("email" in request.auth.token && request.auth.token.email == "admin@iminstitute.online") ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "superadmin")
+        );
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // --- COURSE BUILDER ---
+    match /courses/{courseId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isSuperAdmin() || courseId.matches('^CRS-.*');
+    }
+
+    match /course_modules/{moduleId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isSuperAdmin();
+    }
+
+    match /course_lessons/{lessonId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isSuperAdmin();
+    }
+
+    match /course_assessments/{assessmentId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isSuperAdmin();
+    }
+
+    match /certificates/{certId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isSuperAdmin();
+    }
+
+    match /analytics/{doc} {
+      allow read, write: if isSuperAdmin();
+    }
+
+    // --- WORKSHOPS & CONTENT ---
+    match /workshops/{id} {
+      allow read: if true;
+      
+      // CRITICAL: Allow unrestricted write access to AI-generated courses
+      // This enables the "Auto-Heal" feature where the client instantiates the course on demand
+      allow write: if id.matches('^ai-gen-.*'); 
+
+      // Standard Course Rules (Non-AI)
+      // Creation: Authenticated users (Instructors)
+      allow create: if isAuthenticated() && !id.matches('^ai-gen-.*');
+      
+      // Update: Super Admins or the original creator
+      allow update: if (isAdmin() || isSuperAdmin() || resource.data.created_by == request.auth.uid) && !id.matches('^ai-gen-.*');
+      
+      // Delete: Super Admins Only
+      allow delete: if isAdmin() || isSuperAdmin() && !id.matches('^ai-gen-.*');
+    }
+
+    // Sub-collections for workshops
+    match /workshops/{wsId}/topics/{topicId} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin() || wsId.matches('^ai-gen-.*') || isAuthenticated();
+    }
+
+    // --- USER DATA ---
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow update: if isOwner(userId) || isSuperAdmin() || isAdmin();
+      allow create: if isOwner(userId) || isSuperAdmin() || isAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // --- ENROLLMENTS ---
+    match /enrollments/{id} {
+      // Creation allowed for authenticated users
+      allow create: if isAuthenticated();
+      
+      // Read allowed if: Admin, Owner, or checking potential ID
+      allow get: if isAdmin() || isSuperAdmin() || 
+                  (isAuthenticated() && (
+                    resource == null || resource.data.userId == request.auth.uid
+                  ));
+      allow list: if isAdmin() || isSuperAdmin() || 
+                  (isAuthenticated() && resource.data.userId == request.auth.uid);
+                  
+      allow update: if isOwner(resource.data.userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // --- PAYMENTS ---
+    match /payments/{id} {
+      allow create: if isAuthenticated();
+      allow get: if isAdmin() || isSuperAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow list: if isAdmin() || isSuperAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+
+    // --- SYSTEM LOGS & ACTIONS ---
+    // Open write access for audit trails (Client actions like "Page Visited" or "AI Generated")
+    match /admin_actions/{id} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create: if true; 
+    }
+    
+    match /system_logs/{id} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create: if true;
+    }
+
+    match /ai_chat_logs/{id} {
+        allow create: if true;
+        allow get: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid);
+        allow list: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    match /complaints/{id} {
+      allow create: if true;
+      allow get: if isAdmin() || isSuperAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow list: if isAdmin() || isSuperAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || isSuperAdmin() || isOwner(resource.data.userId);
+    }
+    
+    match /scholarship_applications/{id} {
+      allow create: if isAuthenticated();
+      allow get: if isAdmin() || isSuperAdmin() || (isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid));
+      allow list: if isAdmin() || isSuperAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+
+    // --- ACADEMIC PROGRAM MANAGEMENT ---
+    match /programs/{id} {
+      allow read: if true; // Public can view programs (filtering by status done in query)
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /academic_courses/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /academic_levels/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /program_versions/{id} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+
+    // --- MISSING COLLECTIONS ADDED ---
+    match /login_logs/{id} {
+      allow create: if true;
+      allow read: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /resources/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /issue_resolutions/{id} {
+      allow create: if true;
+      allow read: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /assignments/{id} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
