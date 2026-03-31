@@ -5,9 +5,8 @@ import { TopicModule } from "../types";
 let aiClient: GoogleGenAI | null = null;
 
 const getClient = () => {
-
   // const apiKey =  process.env.API_KEY;
-  const apiKey =  import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
   if (!aiClient) {
     if (!apiKey) {
